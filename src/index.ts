@@ -3,8 +3,6 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerQueryData } from "./tools/query-data";
 import { registerGetSchema } from "./tools/get-schema";
 import { registerCodeMode } from "./tools/code-mode";
-import { registerMutationFrequency } from "./tools/mutation-frequency";
-import { registerStudySummary } from "./tools/study-summary";
 import { CbioportalDataDO } from "./do";
 
 export { CbioportalDataDO };
@@ -22,8 +20,6 @@ export class MyMCP extends McpAgent {
 
     async init() {
         const env = this.env as unknown as CbioportalEnv;
-        registerMutationFrequency(this.server, env);
-        registerStudySummary(this.server, env);
         registerQueryData(this.server, env);
         registerGetSchema(this.server, env);
         registerCodeMode(this.server, env);

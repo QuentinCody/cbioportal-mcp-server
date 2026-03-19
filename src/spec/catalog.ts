@@ -11,8 +11,7 @@ export const cbioportalCatalog: ApiCatalog = {
         "- Study IDs follow pattern: cancer_source (e.g. brca_tcga, luad_tcga_pan_can_atlas_2018)\n" +
         "- Molecular profile IDs = studyId + '_mutations' or '_gistic' or '_rna_seq_v2_mrna'\n" +
         "- Most endpoints return JSON arrays; use pageSize/pageNumber for pagination\n" +
-        "- No auth required\n" +
-        "- For mutation data, prefer the cbioportal_mutation_frequency hand-built tool",
+        "- No auth required",
     endpoints: [
         // === Studies ===
         {
@@ -32,7 +31,6 @@ export const cbioportalCatalog: ApiCatalog = {
             path: "/studies/{studyId}",
             summary: "Get a specific study by ID",
             category: "studies",
-            coveredByTool: "cbioportal_study_summary",
             pathParams: [
                 { name: "studyId", type: "string", required: true, description: "Study ID (e.g. brca_tcga)" },
             ],
@@ -61,14 +59,14 @@ export const cbioportalCatalog: ApiCatalog = {
         {
             method: "GET",
             path: "/molecular-profiles/{molecularProfileId}/mutations",
-            summary: "Get mutations for a molecular profile (optionally filtered by sample list)",
+            summary: "Get mutations for a molecular profile. Requires sampleListId and entrezGeneId.",
             category: "mutations",
-            coveredByTool: "cbioportal_mutation_frequency",
             pathParams: [
                 { name: "molecularProfileId", type: "string", required: true, description: "Molecular profile ID (e.g. brca_tcga_mutations)" },
             ],
             queryParams: [
-                { name: "sampleListId", type: "string", required: false, description: "Sample list ID" },
+                { name: "sampleListId", type: "string", required: true, description: "Sample list ID (e.g. 'brca_tcga_all' — format: {studyId}_all)" },
+                { name: "entrezGeneId", type: "number", required: true, description: "Entrez Gene ID (e.g. 7157 for TP53, 672 for BRCA1)" },
                 { name: "projection", type: "string", required: false, description: "Detail level", enum: ["SUMMARY", "DETAILED", "ID"] },
                 { name: "pageSize", type: "number", required: false, description: "Results per page" },
                 { name: "pageNumber", type: "number", required: false, description: "Page number" },
