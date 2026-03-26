@@ -14,7 +14,7 @@ interface MutEnv {
     };
 }
 
-export function registerMutationFrequency(server: McpServer, env?: MutEnv) {
+export function registerMutationFrequency(server: McpServer, env?: MutEnv): void {
     server.registerTool(
         "cbioportal_mutation_frequency",
         {
@@ -79,7 +79,7 @@ export function registerMutationFrequency(server: McpServer, env?: MutEnv) {
                 if (shouldStage(responseSize) && runtimeEnv?.CBIOPORTAL_DATA_DO) {
                     const staged = await stageToDoAndRespond(
                         data,
-                        runtimeEnv.CBIOPORTAL_DATA_DO as any,
+                        runtimeEnv.CBIOPORTAL_DATA_DO as DurableObjectNamespace,
                         "mutations",
                         undefined,
                         undefined,

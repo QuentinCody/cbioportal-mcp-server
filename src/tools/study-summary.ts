@@ -6,7 +6,7 @@ import {
     createCodeModeError,
 } from "@bio-mcp/shared/codemode/response";
 
-export function registerStudySummary(server: McpServer, _env?: unknown) {
+export function registerStudySummary(server: McpServer, _env?: unknown): void {
     server.registerTool(
         "cbioportal_study_summary",
         {

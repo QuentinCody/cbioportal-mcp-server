@@ -6,7 +6,7 @@ interface QueryEnv {
     CBIOPORTAL_DATA_DO?: unknown;
 }
 
-export function registerQueryData(server: McpServer, env?: QueryEnv) {
+export function registerQueryData(server: McpServer, env?: QueryEnv): void {
     const handler = createQueryDataHandler("CBIOPORTAL_DATA_DO", "cbioportal");
 
     server.registerTool(
