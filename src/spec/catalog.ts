@@ -5,13 +5,21 @@ export const cbioportalCatalog: ApiCatalog = {
     baseUrl: "https://www.cbioportal.org/api",
     version: "1.0",
     auth: "none",
-    endpointCount: 25,
+    endpointCount: 24,
     notes:
         "- Public REST API with Swagger docs at /api-docs\n" +
         "- Study IDs follow pattern: cancer_source (e.g. brca_tcga, luad_tcga_pan_can_atlas_2018)\n" +
         "- Molecular profile IDs = studyId + '_mutations' or '_gistic' or '_rna_seq_v2_mrna'\n" +
         "- Most endpoints return JSON arrays; use pageSize/pageNumber for pagination\n" +
-        "- No auth required",
+        "- No auth required\n" +
+        "- STATS HELPERS available in execute: stats.kaplanMeier(patients, timeField, statusField, eventValue) → KM survival estimator\n" +
+        "- stats.logRank(group1, group2, timeField, statusField, eventValue) → log-rank test comparing two survival curves\n" +
+        "- stats.fisherExact2x2(a, b, c, d) → Fisher's exact test for 2x2 contingency table\n" +
+        "- stats.coOccurrence(mutations, genes, sampleIdField) → pairwise mutation co-occurrence with Fisher's p-values\n" +
+        "- stats.mannWhitneyU(values1, values2) → Mann-Whitney U rank-sum test\n" +
+        "- stats.cohortSplit(mutations, clinicalData, gene, sampleIdField, patientIdField) → split mutant/wildtype cohorts\n" +
+        "- stats.mutationFrequency(mutations, totalSamples, geneField, sampleIdField) → per-gene mutation frequency\n" +
+        "- stats.expressionStats(values) → summary statistics (n, mean, median, min, max, q1, q3, sd)",
     endpoints: [
         // === Studies ===
         {
@@ -163,6 +171,114 @@ export const cbioportalCatalog: ApiCatalog = {
             category: "clinical_data",
             pathParams: [
                 { name: "studyId", type: "string", required: true, description: "Study ID" },
+            ],
+        },
+        // === Molecular Data (Expression, Protein, Methylation) ===
+        {
+            method: "GET",
+            path: "/molecular-profiles/{molecularProfileId}/molecular-data",
+            summary: "Get molecular data (mRNA expression, protein levels, methylation) for a molecular profile. Use with expression profiles like {studyId}_rna_seq_v2_mrna.",
+            category: "molecular_data",
+            pathParams: [
+                { name: "molecularProfileId", type: "string", required: true, description: "Molecular profile ID (e.g. brca_tcga_rna_seq_v2_mrna, brca_tcga_rppa)" },
+            ],
+            queryParams: [
+                { name: "sampleListId", type: "string", required: true, description: "Sample list ID (e.g. brca_tcga_all)" },
+                { name: "entrezGeneId", type: "number", required: true, description: "Entrez Gene ID" },
+                { name: "projection", type: "string", required: false, description: "Detail level", enum: ["SUMMARY", "DETAILED", "ID"] },
+            ],
+        },
+        {
+            method: "POST",
+            path: "/molecular-profiles/{molecularProfileId}/molecular-data/fetch",
+            summary: "Fetch molecular data by sample IDs (batch). Body: {sampleIds: string[], entrezGeneIds: number[]}",
+            category: "molecular_data",
+            pathParams: [
+                { name: "molecularProfileId", type: "string", required: true, description: "Molecular profile ID" },
+            ],
+        },
+        // === Structural Variants (Fusions) ===
+        {
+            method: "POST",
+            path: "/structural-variant/fetch",
+            summary: "Fetch structural variants (fusions, rearrangements). Body: {molecularProfileIds: string[], entrezGeneIds: number[]}. Essential for fusion-driven cancers (ALK-EML4, BCR-ABL).",
+            category: "structural_variants",
+        },
+        // === Batch Mutations ===
+        {
+            method: "POST",
+            path: "/molecular-profiles/{molecularProfileId}/mutations/fetch",
+            summary: "Fetch mutations by specific sample IDs (batch). Body: {sampleIds: string[], entrezGeneIds: number[]}",
+            category: "mutations",
+            pathParams: [
+                { name: "molecularProfileId", type: "string", required: true, description: "Molecular profile ID (e.g. brca_tcga_mutations)" },
+            ],
+        },
+        // === Gene Panels ===
+        {
+            method: "GET",
+            path: "/gene-panels",
+            summary: "List all gene panels (e.g. MSK-IMPACT, FoundationOne) with their IDs",
+            category: "gene_panels",
+        },
+        {
+            method: "GET",
+            path: "/gene-panels/{genePanelId}",
+            summary: "Get a specific gene panel including its full gene list",
+            category: "gene_panels",
+            pathParams: [
+                { name: "genePanelId", type: "string", required: true, description: "Gene panel ID (e.g. IMPACT468)" },
+            ],
+        },
+        // === Pre-computed Analysis Results ===
+        {
+            method: "GET",
+            path: "/studies/{studyId}/significantly-mutated-genes",
+            summary: "Get significantly mutated genes (MutSig results) for a study, with p-values and q-values",
+            category: "analysis",
+            pathParams: [
+                { name: "studyId", type: "string", required: true, description: "Study ID" },
+            ],
+        },
+        {
+            method: "GET",
+            path: "/studies/{studyId}/significant-copy-number-regions",
+            summary: "Get significant copy number regions (GISTIC results) for a study, with cytobands and affected genes",
+            category: "analysis",
+            pathParams: [
+                { name: "studyId", type: "string", required: true, description: "Study ID" },
+            ],
+        },
+        // === Clinical Events (Treatment Timeline) ===
+        {
+            method: "GET",
+            path: "/studies/{studyId}/patients/{patientId}/clinical-events",
+            summary: "Get clinical timeline events for a patient (diagnosis, treatment, imaging, status changes)",
+            category: "clinical_events",
+            pathParams: [
+                { name: "studyId", type: "string", required: true, description: "Study ID" },
+                { name: "patientId", type: "string", required: true, description: "Patient ID" },
+            ],
+        },
+        // === Mutation Spectrums (Mutational Signatures) ===
+        {
+            method: "POST",
+            path: "/molecular-profiles/{molecularProfileId}/mutation-spectrums/fetch",
+            summary: "Fetch mutation spectrums (C>A, C>G, C>T, T>A, T>C, T>G base substitution counts) per sample. Body: {sampleIds: string[]}",
+            category: "analysis",
+            pathParams: [
+                { name: "molecularProfileId", type: "string", required: true, description: "Molecular profile ID (e.g. brca_tcga_mutations)" },
+            ],
+        },
+        // === Per-Patient Clinical Data ===
+        {
+            method: "GET",
+            path: "/studies/{studyId}/patients/{patientId}/clinical-data",
+            summary: "Get all clinical data for a specific patient",
+            category: "clinical_data",
+            pathParams: [
+                { name: "studyId", type: "string", required: true, description: "Study ID" },
+                { name: "patientId", type: "string", required: true, description: "Patient ID" },
             ],
         },
     ],

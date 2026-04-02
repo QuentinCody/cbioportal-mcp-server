@@ -36,6 +36,20 @@ export class CbioportalDataDO extends RestStagingDO {
                         indexes: ["molecularProfileId", "molecularAlterationType", "studyId"],
                     };
                 }
+                // Molecular data (expression, protein, methylation)
+                if ("value" in sample && "entrezGeneId" in sample && "molecularProfileId" in sample) {
+                    return {
+                        tableName: "molecular_data",
+                        indexes: ["entrezGeneId", "sampleId"],
+                    };
+                }
+                // Survival analysis results
+                if ("isEvent" in sample && "time" in sample && "cohort" in sample) {
+                    return {
+                        tableName: "survival_data",
+                        indexes: ["patientId", "cohort"],
+                    };
+                }
             }
         }
 

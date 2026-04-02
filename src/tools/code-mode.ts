@@ -3,6 +3,7 @@ import { createSearchTool } from "@bio-mcp/shared/codemode/search-tool";
 import { createExecuteTool } from "@bio-mcp/shared/codemode/execute-tool";
 import { cbioportalCatalog } from "../spec/catalog";
 import { createCbioportalApiFetch } from "../lib/api-adapter";
+import { ONCOLOGY_STATS_SOURCE } from "../lib/stats-source";
 
 interface CodeModeEnv {
     CBIOPORTAL_DATA_DO: DurableObjectNamespace;
@@ -27,6 +28,7 @@ export function registerCodeMode(
         apiFetch,
         doNamespace: env.CBIOPORTAL_DATA_DO,
         loader: env.CODE_MODE_LOADER,
+        preamble: ONCOLOGY_STATS_SOURCE,
     });
     executeTool.register(server as unknown as { tool: (...args: unknown[]) => void });
 }

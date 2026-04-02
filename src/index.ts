@@ -3,6 +3,10 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerQueryData } from "./tools/query-data";
 import { registerGetSchema } from "./tools/get-schema";
 import { registerCodeMode } from "./tools/code-mode";
+import { registerMutationFrequency } from "./tools/mutation-frequency";
+import { registerStudySummary } from "./tools/study-summary";
+import { registerSurvival } from "./tools/survival";
+import { registerCoOccurrence } from "./tools/co-occurrence";
 import { CbioportalDataDO } from "./do";
 
 export { CbioportalDataDO };
@@ -15,7 +19,7 @@ interface CbioportalEnv {
 export class MyMCP extends McpAgent {
     server = new McpServer({
         name: "cbioportal",
-        version: "0.1.0",
+        version: "0.2.0",
     });
 
     async init() {
@@ -23,6 +27,10 @@ export class MyMCP extends McpAgent {
         registerQueryData(this.server, env);
         registerGetSchema(this.server, env);
         registerCodeMode(this.server, env);
+        registerMutationFrequency(this.server, env);
+        registerStudySummary(this.server);
+        registerSurvival(this.server, env);
+        registerCoOccurrence(this.server, env);
     }
 }
 
