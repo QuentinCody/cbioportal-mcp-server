@@ -4,9 +4,10 @@ import { cbioportalFetch } from "../lib/http";
 import {
     createCodeModeResponse,
     createCodeModeError,
-    type CodeModeResponse,
 } from "@bio-mcp/shared/codemode/response";
 import { stageToDoAndRespond } from "@bio-mcp/shared/staging/utils";
+import { createChartResponse } from "@bio-mcp/shared/charting/create-chart-response";
+import type { ChartSpec } from "@bio-mcp/shared/charting/chart-types";
 import {
     kaplanMeier,
     logRank,
@@ -247,24 +248,85 @@ export function registerSurvival(server: McpServer, env: SurvivalEnv): void {
                 };
             }
 
-            return createCodeModeResponse(
-                {
-                    study_id: studyId,
-                    gene: geneSymbol,
-                    endpoint,
-                    cohort: {
-                        mutant_count: cohort.mutant_count,
-                        wildtype_count: cohort.wildtype_count,
-                        total: cohort.total,
+            // 11. Build KM curve chart data — interleave mutant + wildtype curves
+            const chartData: Record<string, unknown>[] = [];
+            for (const pt of mutantKM.curve) {
+                chartData.push({
+                    time: pt.time,
+                    mutant: pt.survival,
+                    at_risk_mutant: pt.at_risk,
+                });
+            }
+            for (const pt of wildtypeKM.curve) {
+                const existing = chartData.find(
+                    (r) => r.time === pt.time,
+                );
+                if (existing) {
+                    existing.wildtype = pt.survival;
+                    existing.at_risk_wildtype = pt.at_risk;
+                } else {
+                    chartData.push({
+                        time: pt.time,
+                        wildtype: pt.survival,
+                        at_risk_wildtype: pt.at_risk,
+                    });
+                }
+            }
+            chartData.sort((a, b) => (a.time as number) - (b.time as number));
+
+            const kmChart: ChartSpec = {
+                type: "line",
+                title: `${endpointLabel} Survival: ${geneSymbol} in ${studyId}`,
+                subtitle: `Log-rank p=${logRankResult.p_value !== null ? logRankResult.p_value.toExponential(2) : "N/A"}`,
+                xKey: "time",
+                xLabel: "Time (months)",
+                yLabel: "Survival probability",
+                series: [
+                    { name: `${geneSymbol}-Mutant (n=${mutantKM.n})`, dataKey: "mutant", color: "#e74c3c" },
+                    { name: `Wildtype (n=${wildtypeKM.n})`, dataKey: "wildtype", color: "#3498db" },
+                ],
+                data: chartData,
+                numberFormat: "percent",
+                source: "cBioPortal",
+            };
+
+            const chartResponse = createChartResponse({
+                chart: kmChart,
+                toolPrefix: "cbioportal",
+                textPreamble: markdown,
+            });
+
+            // Merge staging and structured data into the chart response
+            return {
+                ...chartResponse,
+                structuredContent: {
+                    ...chartResponse.structuredContent,
+                    data: {
+                        ...chartResponse.structuredContent.data,
+                        study_id: studyId,
+                        gene: geneSymbol,
+                        endpoint,
+                        cohort: {
+                            mutant_count: cohort.mutant_count,
+                            wildtype_count: cohort.wildtype_count,
+                            total: cohort.total,
+                        },
+                        mutant_km: mutantKM,
+                        wildtype_km: wildtypeKM,
+                        log_rank: logRankResult,
+                        ...(stagingMeta ?? {}),
                     },
-                    mutant_km: mutantKM,
-                    wildtype_km: wildtypeKM,
-                    log_rank: logRankResult,
-                    ...(stagingMeta ?? {}),
-                    message: markdown,
+                    _meta: {
+                        ...chartResponse.structuredContent._meta,
+                        gene: geneSymbol,
+                        study_id: studyId,
+                        endpoint,
+                        provenance: [
+                            { key: "survival", label: "Survival Analysis", sources: ["cBioPortal"] },
+                        ],
+                    },
                 },
-                { meta: { gene: geneSymbol, study_id: studyId, endpoint } },
-            );
+            };
         } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
             return createCodeModeError("API_ERROR", `cbioportal_survival failed: ${msg}`);

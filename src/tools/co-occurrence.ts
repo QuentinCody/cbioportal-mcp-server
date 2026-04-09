@@ -6,6 +6,8 @@ import {
     createCodeModeError,
 } from "@bio-mcp/shared/codemode/response";
 import { stageToDoAndRespond } from "@bio-mcp/shared/staging/utils";
+import { createChartResponse } from "@bio-mcp/shared/charting/create-chart-response";
+import type { ChartSpec } from "@bio-mcp/shared/charting/chart-types";
 import { coOccurrence } from "../lib/stats";
 
 interface CoOccurrenceEnv {
@@ -150,17 +152,57 @@ export function registerCoOccurrence(server: McpServer, env: CoOccurrenceEnv): v
                 };
             }
 
-            return createCodeModeResponse(
-                {
-                    study_id: studyId,
-                    genes: validGenes.map((g) => g.symbol),
-                    total_samples: totalSamples,
-                    co_occurrence: result,
-                    ...(stagingMeta ?? {}),
-                    message: markdown,
+            // 7. Build co-occurrence chart — horizontal bar of log-odds ratios
+            const chartData = result.pairs.map((pair) => ({
+                pair: `${pair.geneA}–${pair.geneB}`,
+                log_odds_ratio: pair.log_odds_ratio ?? 0,
+                pattern: pair.pattern,
+                p_value: pair.p_value,
+            }));
+
+            const coChart: ChartSpec = {
+                type: "horizontal-bar",
+                title: `Mutation Co-Occurrence: ${validGenes.map((g) => g.symbol).join(", ")}`,
+                subtitle: `Study: ${studyId} (n=${totalSamples})`,
+                xKey: "pair",
+                xLabel: "Gene Pair",
+                yLabel: "Log Odds Ratio",
+                series: [
+                    { name: "Log Odds Ratio", dataKey: "log_odds_ratio" },
+                ],
+                data: chartData,
+                sort: "desc",
+                source: "cBioPortal",
+            };
+
+            const chartResponse = createChartResponse({
+                chart: coChart,
+                toolPrefix: "cbioportal",
+                textPreamble: markdown,
+            });
+
+            return {
+                ...chartResponse,
+                structuredContent: {
+                    ...chartResponse.structuredContent,
+                    data: {
+                        ...chartResponse.structuredContent.data,
+                        study_id: studyId,
+                        genes: validGenes.map((g) => g.symbol),
+                        total_samples: totalSamples,
+                        co_occurrence: result,
+                        ...(stagingMeta ?? {}),
+                    },
+                    _meta: {
+                        ...chartResponse.structuredContent._meta,
+                        study_id: studyId,
+                        gene_count: validGenes.length,
+                        provenance: [
+                            { key: "co_occurrence", label: "Co-Occurrence Analysis", sources: ["cBioPortal"] },
+                        ],
+                    },
                 },
-                { meta: { study_id: studyId, gene_count: validGenes.length } },
-            );
+            };
         } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
             return createCodeModeError("API_ERROR", `cbioportal_co_occurrence failed: ${msg}`);
