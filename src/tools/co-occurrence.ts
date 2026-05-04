@@ -132,7 +132,7 @@ export function registerCoOccurrence(server: McpServer, env: CoOccurrenceEnv): v
             const markdown = lines.join("\n");
 
             // 6. Stage the mutation data for follow-up SQL queries
-            let stagingMeta = undefined;
+            let stagingMeta: Record<string, unknown> | undefined;
             if (env.CBIOPORTAL_DATA_DO && allMutations.length > 0) {
                 const staged = await stageToDoAndRespond(
                     allMutations,

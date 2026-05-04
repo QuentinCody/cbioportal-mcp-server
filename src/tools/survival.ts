@@ -62,7 +62,7 @@ function pivotClinicalToSurvival(
         const p = patients.get(pid)!;
 
         if (attr === timeName) {
-            const t = parseFloat(val);
+            const t = Number.parseFloat(val);
             if (!isNaN(t) && t >= 0) p.time = t;
         } else if (attr === statusName) {
             p.status = val;
@@ -228,7 +228,7 @@ export function registerSurvival(server: McpServer, env: SurvivalEnv): void {
                 cohort: mutantPatientSet.has(r.patientId) ? `${geneSymbol}-mutant` : "wildtype",
             }));
 
-            let stagingMeta = undefined;
+            let stagingMeta: Record<string, unknown> | undefined;
             if (env.CBIOPORTAL_DATA_DO) {
                 const staged = await stageToDoAndRespond(
                     stageData,

@@ -132,7 +132,7 @@ function chiSquaredPValue1df(x: number): number {
 
 /** Lanczos log-gamma approximation */
 function logGamma(z: number): number {
-    if (z <= 0) return Infinity;
+    if (z <= 0) return Number.POSITIVE_INFINITY;
 	const c = [
 		0.999_999_999_999_809_93, 676.520_368_121_885_1, -1259.139_216_722_402_8, 771.323_428_777_653_1,
 		-176.615_029_162_140_6, 12.507_343_278_686_905, -0.138_571_095_265_720_12, 9.984_369_578_019_571_6e-6,
@@ -145,7 +145,7 @@ function logGamma(z: number): number {
 }
 
 function logChoose(n: number, k: number): number {
-    if (k < 0 || k > n) return -Infinity;
+    if (k < 0 || k > n) return Number.NEGATIVE_INFINITY;
     return logGamma(n + 1) - logGamma(k + 1) - logGamma(n - k + 1);
 }
 
@@ -197,7 +197,7 @@ export function kaplanMeier(
 
     const parsed: Array<{ time: number; event: number }> = [];
     for (const p of patients) {
-        const t = parseFloat(String(p[timeField]));
+        const t = Number.parseFloat(String(p[timeField]));
         if (isNaN(t) || t < 0) continue;
         const s = String(p[statusField] ?? "");
         const isEvent =
@@ -267,7 +267,7 @@ export function logRank(
     function parseGroup(patients: Record<string, unknown>[]): Array<{ time: number; event: number }> {
         const out: Array<{ time: number; event: number }> = [];
         for (const p of patients) {
-            const t = parseFloat(String(p[timeField]));
+            const t = Number.parseFloat(String(p[timeField]));
             if (isNaN(t) || t < 0) continue;
             const s = String(p[statusField] ?? "");
             const isEvent =
