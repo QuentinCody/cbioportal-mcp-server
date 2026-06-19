@@ -313,29 +313,37 @@ const stats = (() => {
   }
 
   // --- Mutation co-occurrence analysis ---
-  function coOccurrence(mutations, genes, sampleIdField) {
+  // genes: [{ symbol, entrezGeneId }] — key membership on entrezGeneId because
+  // the cBioPortal mutations SUMMARY projection omits hugoGeneSymbol; symbol-only
+  // matching silently yields both/aOnly/bOnly=0. Fall back to hugoGeneSymbol/gene
+  // for richer projections. totalSamples MUST be the full cohort size (e.g.
+  // /studies/{id}/samples length), NOT the count of mutation-bearing samples —
+  // otherwise the 2x2 denominator is wrong and the Fisher p-value is inflated.
+  function coOccurrence(mutations, genes, totalSamples, sampleIdField) {
     sampleIdField = sampleIdField || "sampleId";
-    const geneField = "hugoGeneSymbol";
+    const symbols = genes.map((g) => g.symbol);
 
-    // Build per-gene sample sets
+    // Build per-gene sample sets keyed on entrezGeneId (hugo/gene fallback)
     const geneSets = {};
-    const allSamples = new Set();
-    for (const g of genes) geneSets[g] = new Set();
+    const byEntrez = {};
+    for (const g of genes) { geneSets[g.symbol] = new Set(); byEntrez[g.entrezGeneId] = g.symbol; }
     for (const m of mutations) {
-      const gene = m[geneField] || m.hugoGeneSymbol || m.gene;
       const sample = m[sampleIdField];
-      if (gene && sample && geneSets[gene]) {
-        geneSets[gene].add(sample);
+      if (!sample) continue;
+      const entrez = typeof m.entrezGeneId === "number" ? m.entrezGeneId : Number(m.entrezGeneId);
+      let symbol = byEntrez[entrez];
+      if (!symbol) {
+        const hugo = m.hugoGeneSymbol || m.gene;
+        if (hugo && geneSets[hugo]) symbol = hugo;
       }
-      if (sample) allSamples.add(sample);
+      if (symbol) geneSets[symbol].add(sample);
     }
 
-    const totalSamples = allSamples.size;
     const pairs = [];
 
-    for (let i = 0; i < genes.length; i++) {
-      for (let j = i + 1; j < genes.length; j++) {
-        const gA = genes[i], gB = genes[j];
+    for (let i = 0; i < symbols.length; i++) {
+      for (let j = i + 1; j < symbols.length; j++) {
+        const gA = symbols[i], gB = symbols[j];
         const sA = geneSets[gA], sB = geneSets[gB];
         let both = 0;
         for (const s of sA) if (sB.has(s)) both++;
@@ -365,17 +373,18 @@ const stats = (() => {
   }
 
   // --- Cohort split by mutation status ---
+  // gene: pass entrezGeneId (number) to work under the SUMMARY projection
+  // (no hugoGeneSymbol); a Hugo symbol (string) matches richer projections.
   function cohortSplit(mutations, clinicalData, gene, sampleIdField, patientIdField) {
     sampleIdField = sampleIdField || "sampleId";
     patientIdField = patientIdField || "patientId";
+    const wantSymbol = typeof gene === "number" ? null : String(gene).toUpperCase();
 
-    // Find mutated samples
     const mutatedSamples = new Set();
     for (const m of mutations) {
       const g = m.hugoGeneSymbol || m.gene;
-      if (g && g.toUpperCase() === gene.toUpperCase()) {
-        mutatedSamples.add(m[sampleIdField]);
-      }
+      const hit = wantSymbol === null ? Number(m.entrezGeneId) === gene : !!g && g.toUpperCase() === wantSymbol;
+      if (hit) mutatedSamples.add(m[sampleIdField]);
     }
 
     // Get all unique patients from clinical data

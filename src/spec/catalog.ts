@@ -15,9 +15,9 @@ export const cbioportalCatalog: ApiCatalog = {
         "- STATS HELPERS available in execute: stats.kaplanMeier(patients, timeField, statusField, eventValue) → KM survival estimator\n" +
         "- stats.logRank(group1, group2, timeField, statusField, eventValue) → log-rank test comparing two survival curves\n" +
         "- stats.fisherExact2x2(a, b, c, d) → Fisher's exact test for 2x2 contingency table\n" +
-        "- stats.coOccurrence(mutations, genes, sampleIdField) → pairwise mutation co-occurrence with Fisher's p-values\n" +
+        "- stats.coOccurrence(mutations, genes, totalSamples, sampleIdField) → pairwise mutation co-occurrence with Fisher's p-values. genes = [{symbol, entrezGeneId}]; membership keys on entrezGeneId (SUMMARY mutations omit hugoGeneSymbol). Pass totalSamples = the FULL cohort size (e.g. /studies/{id}/samples length), NOT just mutation-bearing samples.\n" +
         "- stats.mannWhitneyU(values1, values2) → Mann-Whitney U rank-sum test\n" +
-        "- stats.cohortSplit(mutations, clinicalData, gene, sampleIdField, patientIdField) → split mutant/wildtype cohorts\n" +
+        "- stats.cohortSplit(mutations, clinicalData, gene, sampleIdField, patientIdField) → split mutant/wildtype cohorts. Pass gene = entrezGeneId (number) so it works under the SUMMARY projection; a Hugo symbol string only matches richer projections.\n" +
         "- stats.mutationFrequency(mutations, totalSamples, geneField, sampleIdField) → per-gene mutation frequency\n" +
         "- stats.expressionStats(values) → summary statistics (n, mean, median, min, max, q1, q3, sd)",
     endpoints: [

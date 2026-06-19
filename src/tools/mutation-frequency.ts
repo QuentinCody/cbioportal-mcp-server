@@ -14,6 +14,33 @@ interface MutEnv {
     };
 }
 
+/**
+ * Resolve a HUGO gene symbol to its Entrez Gene ID and pick a sample list.
+ * The cBioPortal GET mutations endpoint requires BOTH entrezGeneId and sampleListId;
+ * passing only sampleListId (or neither) returns HTTP 400 "missing entrezGeneId".
+ */
+async function resolveMutationQuery(
+    profileId: string,
+    hugoGeneSymbol: string,
+    sampleListId?: string,
+): Promise<{ entrezGeneId: number; sampleListId: string }> {
+    const geneSym = hugoGeneSymbol.toUpperCase();
+    const geneResp = await cbioportalFetch(`/genes/${encodeURIComponent(geneSym)}`);
+    if (!geneResp.ok) {
+        const body = await geneResp.text().catch(() => "");
+        throw new Error(
+            `gene lookup failed for '${geneSym}': HTTP ${geneResp.status}${body ? ` - ${body.slice(0, 200)}` : ""}`,
+        );
+    }
+    const geneObj = (await geneResp.json()) as { entrezGeneId?: number };
+    if (!geneObj.entrezGeneId) {
+        throw new Error(`no Entrez Gene ID found for '${geneSym}'`);
+    }
+    // Default to the study's "_all" sample list (strip the "_mutations" profile suffix).
+    const resolvedList = sampleListId ?? `${profileId.replace(/_mutations$/, "")}_all`;
+    return { entrezGeneId: geneObj.entrezGeneId, sampleListId: resolvedList };
+}
+
 export function registerMutationFrequency(server: McpServer, env?: MutEnv): void {
     server.registerTool(
         "cbioportal_mutation_frequency",
@@ -48,18 +75,30 @@ export function registerMutationFrequency(server: McpServer, env?: MutEnv): void
             const runtimeEnv = env || (extra as { env?: MutEnv })?.env;
             try {
                 const profileId = String(args.molecular_profile_id);
+
+                // The cBioPortal mutations endpoint requires a specific gene (entrezGeneId).
+                if (!args.hugo_gene_symbol) {
+                    return createCodeModeError(
+                        "MISSING_GENE",
+                        "cbioportal_mutation_frequency requires hugo_gene_symbol — the cBioPortal mutations endpoint needs a specific gene. For multi-gene or whole-profile pulls, use cbioportal_execute (POST /mutations/fetch with entrezGeneIds[]).",
+                    );
+                }
+
+                const { entrezGeneId, sampleListId } = await resolveMutationQuery(
+                    profileId,
+                    String(args.hugo_gene_symbol),
+                    args.sample_list_id ? String(args.sample_list_id) : undefined,
+                );
+
                 const params: Record<string, unknown> = {
+                    sampleListId,
+                    entrezGeneId,
                     projection: "DETAILED",
                     pageSize: args.page_size || 1000,
                     pageNumber: 0,
                 };
 
                 const path = `/molecular-profiles/${encodeURIComponent(profileId)}/mutations`;
-
-                if (args.sample_list_id) {
-                    params.sampleListId = String(args.sample_list_id);
-                }
-
                 const response = await cbioportalFetch(path, params);
 
                 if (!response.ok) {
@@ -67,13 +106,7 @@ export function registerMutationFrequency(server: McpServer, env?: MutEnv): void
                     throw new Error(`cBioPortal API error: HTTP ${response.status}${body ? ` - ${body.slice(0, 300)}` : ""}`);
                 }
 
-                let data = await response.json() as Record<string, unknown>[];
-
-                // Filter by gene if specified
-                if (args.hugo_gene_symbol) {
-                    const gene = String(args.hugo_gene_symbol).toUpperCase();
-                    data = data.filter((m) => String(m.hugoGeneSymbol).toUpperCase() === gene);
-                }
+                const data = await response.json() as Record<string, unknown>[];
 
                 const responseSize = JSON.stringify(data).length;
                 if (shouldStage(responseSize) && runtimeEnv?.CBIOPORTAL_DATA_DO) {
@@ -84,7 +117,7 @@ export function registerMutationFrequency(server: McpServer, env?: MutEnv): void
                         undefined,
                         undefined,
                         "cbioportal",
-                        (extra as { sessionId?: string })?.sessionId,
+                        (extra as Record<string, unknown>),
                     );
                     return createCodeModeResponse(
                         {

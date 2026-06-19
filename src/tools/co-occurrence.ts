@@ -101,10 +101,13 @@ export function registerCoOccurrence(server: McpServer, env: CoOccurrenceEnv): v
                 for (const mutations of results) allMutations.push(...mutations);
             }
 
-            // 4. Run co-occurrence analysis
+            // 4. Run co-occurrence analysis. Pass entrezGeneId (mutations SUMMARY
+            // projection has hugoGeneSymbol=null) and the full cohort size as the
+            // denominator (not just mutation-bearing samples).
             const result = coOccurrence(
                 allMutations,
-                validGenes.map((g) => g.symbol),
+                validGenes.map((g) => ({ symbol: g.symbol, entrezGeneId: g.entrezGeneId })),
+                totalSamples,
             );
 
             // 5. Build markdown summary

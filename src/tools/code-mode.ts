@@ -24,6 +24,8 @@ export function registerCodeMode(
 
     const executeTool = createExecuteTool({
         prefix: "cbioportal",
+        // Verifiable provenance: cbioportal_execute results carry a _meta.citation.
+        source: { id: "cbioportal", name: "cBioPortal", url: "https://www.cbioportal.org" },
         catalog: cbioportalCatalog,
         apiFetch,
         doNamespace: env.CBIOPORTAL_DATA_DO,

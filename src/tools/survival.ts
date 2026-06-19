@@ -155,6 +155,14 @@ export function registerSurvival(server: McpServer, env: SurvivalEnv): void {
                 }) as Promise<Record<string, unknown>[]>,
             ]);
 
+            // SUMMARY-projection mutations omit hugoGeneSymbol; cohortSplit
+            // matches on it, so stamp the resolved symbol back on. Every row is
+            // already this gene because the query was filtered by entrezGeneId.
+            const annotatedMutations = mutationData.map((m) => ({
+                ...m,
+                hugoGeneSymbol: m.hugoGeneSymbol ?? geneSymbol,
+            }));
+
             // 3. Build sample→patient mapping
             const sampleToPatient = new Map<string, string>();
             for (const s of sampleData) {
@@ -187,7 +195,7 @@ export function registerSurvival(server: McpServer, env: SurvivalEnv): void {
             }
 
             // 6. Split into mutant/wildtype cohorts
-            const cohort = cohortSplit(mutationData, sampleToPatient, geneSymbol, allPatientIds);
+            const cohort = cohortSplit(annotatedMutations, sampleToPatient, geneSymbol, allPatientIds);
 
             const mutantPatientSet = new Set(cohort.mutant_patients);
             const mutantSurvival = survivalRecords.filter((r) => mutantPatientSet.has(r.patientId));
@@ -237,7 +245,7 @@ export function registerSurvival(server: McpServer, env: SurvivalEnv): void {
                     undefined,
                     undefined,
                     "cbioportal",
-                    (extra as { sessionId?: string })?.sessionId,
+                    (extra as Record<string, unknown>),
                 );
                 stagingMeta = {
                     staged: true as const,

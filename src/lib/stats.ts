@@ -28,22 +28,12 @@ export interface FisherExactResult {
     log_odds_ratio: number | null;
 }
 
-export interface CoOccurrencePair {
-    geneA: string;
-    geneB: string;
-    both: number;
-    aOnly: number;
-    bOnly: number;
-    neither: number;
-    log_odds_ratio: number | null;
-    p_value: number | null;
-    pattern: string;
-}
-
-export interface CoOccurrenceResult {
-    pairs: CoOccurrencePair[];
-    total_samples: number;
-}
+export type {
+    CoOccurrenceGene,
+    CoOccurrencePair,
+    CoOccurrenceResult,
+} from "./co-occurrence-stat";
+export { coOccurrence } from "./co-occurrence-stat";
 
 export interface MannWhitneyResult {
     u_statistic: number | null;
@@ -374,59 +364,6 @@ export function mannWhitneyU(group1Values: number[], group2Values: number[]): Ma
     const pVal = 2 * (1 - normalCDF(Math.abs(z)));
 
     return { u_statistic: round(u, 2), z_score: round(z, 4), p_value: round(pVal, 6) };
-}
-
-export function coOccurrence(
-    mutations: Record<string, unknown>[],
-    genes: string[],
-    sampleIdField = "sampleId",
-): CoOccurrenceResult {
-    const geneSets = new Map<string, Set<string>>();
-    const allSamples = new Set<string>();
-    for (const g of genes) geneSets.set(g, new Set());
-
-    for (const m of mutations) {
-        const gene = String(m.hugoGeneSymbol ?? m.gene ?? "");
-        const sample = String(m[sampleIdField] ?? "");
-        if (gene && sample && geneSets.has(gene)) geneSets.get(gene)!.add(sample);
-        if (sample) allSamples.add(sample);
-    }
-
-    const totalSamples = allSamples.size;
-    const pairs: CoOccurrencePair[] = [];
-
-    for (let i = 0; i < genes.length; i++) {
-        for (let j = i + 1; j < genes.length; j++) {
-            const sA = geneSets.get(genes[i])!;
-            const sB = geneSets.get(genes[j])!;
-            let both = 0;
-            for (const s of sA) if (sB.has(s)) both++;
-            const aOnly = sA.size - both;
-            const bOnly = sB.size - both;
-            const neither = totalSamples - both - aOnly - bOnly;
-
-            const fisher = fisherExact2x2(both, aOnly, bOnly, neither);
-            pairs.push({
-                geneA: genes[i],
-                geneB: genes[j],
-                both,
-                aOnly,
-                bOnly,
-                neither,
-                log_odds_ratio: fisher.log_odds_ratio,
-                p_value: fisher.p_value,
-                pattern:
-                    fisher.log_odds_ratio !== null
-                        ? fisher.log_odds_ratio > 0
-                            ? "co-occurring"
-                            : "mutually exclusive"
-                        : "indeterminate",
-            });
-        }
-    }
-
-    pairs.sort((a, b) => (a.p_value ?? 1) - (b.p_value ?? 1));
-    return { pairs, total_samples: totalSamples };
 }
 
 export function cohortSplit(
