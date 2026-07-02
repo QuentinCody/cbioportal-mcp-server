@@ -42,107 +42,116 @@ async function resolveMutationQuery(
 }
 
 export function registerMutationFrequency(server: McpServer, env?: MutEnv): void {
-    server.registerTool(
-        "cbioportal_mutation_frequency",
-        {
-            title: "Get Somatic Mutations for a Study",
-            description:
-                "Retrieve somatic mutation data from a cBioPortal study's mutation molecular profile. Returns per-sample mutations with gene, protein change, mutation type, and allele frequencies.",
-            inputSchema: {
-                molecular_profile_id: z
-                    .string()
-                    .min(1)
-                    .describe("Molecular profile ID (e.g. 'brca_tcga_mutations' — append '_mutations' to study ID)"),
-                hugo_gene_symbol: z
-                    .string()
-                    .optional()
-                    .describe("Filter by gene symbol (e.g. 'TP53', 'BRAF')"),
-                sample_list_id: z
-                    .string()
-                    .optional()
-                    .describe("Sample list ID (default: all samples in the study)"),
-                page_size: z
-                    .number()
-                    .int()
-                    .min(1)
-                    .max(10000)
-                    .default(1000)
-                    .optional()
-                    .describe("Number of mutations to return (default: 1000)"),
-            },
+    const schema = {
+        title: "Get Somatic Mutations for a Study",
+        description:
+            "Retrieve somatic mutation data from a cBioPortal study's mutation molecular profile. Returns per-sample mutations with gene, protein change, mutation type, and allele frequencies.",
+        inputSchema: {
+            molecular_profile_id: z
+                .string()
+                .min(1)
+                .describe("Molecular profile ID (e.g. 'brca_tcga_mutations' — append '_mutations' to study ID)"),
+            hugo_gene_symbol: z
+                .string()
+                .optional()
+                .describe("Filter by gene symbol (e.g. 'TP53', 'BRAF')"),
+            sample_list_id: z
+                .string()
+                .optional()
+                .describe("Sample list ID (default: all samples in the study)"),
+            page_size: z
+                .number()
+                .int()
+                .min(1)
+                .max(10000)
+                .default(1000)
+                .optional()
+                .describe("Number of mutations to return (default: 1000)"),
         },
-        async (args, extra) => {
-            const runtimeEnv = env || (extra as { env?: MutEnv })?.env;
-            try {
-                const profileId = String(args.molecular_profile_id);
+    };
 
-                // The cBioPortal mutations endpoint requires a specific gene (entrezGeneId).
-                if (!args.hugo_gene_symbol) {
-                    return createCodeModeError(
-                        "MISSING_GENE",
-                        "cbioportal_mutation_frequency requires hugo_gene_symbol — the cBioPortal mutations endpoint needs a specific gene. For multi-gene or whole-profile pulls, use cbioportal_execute (POST /mutations/fetch with entrezGeneIds[]).",
-                    );
-                }
+    const handler = async (
+        args: {
+            molecular_profile_id: string;
+            hugo_gene_symbol?: string;
+            sample_list_id?: string;
+            page_size?: number;
+        },
+        extra: unknown,
+    ) => {
+        const runtimeEnv = env || (extra as { env?: MutEnv })?.env;
+        try {
+            const profileId = String(args.molecular_profile_id);
 
-                const { entrezGeneId, sampleListId } = await resolveMutationQuery(
-                    profileId,
-                    String(args.hugo_gene_symbol),
-                    args.sample_list_id ? String(args.sample_list_id) : undefined,
+            // The cBioPortal mutations endpoint requires a specific gene (entrezGeneId).
+            if (!args.hugo_gene_symbol) {
+                return createCodeModeError(
+                    "MISSING_GENE",
+                    "cbioportal_mutation_frequency requires hugo_gene_symbol — the cBioPortal mutations endpoint needs a specific gene. For multi-gene or whole-profile pulls, use cbioportal_execute (POST /mutations/fetch with entrezGeneIds[]).",
                 );
+            }
 
-                const params: Record<string, unknown> = {
-                    sampleListId,
-                    entrezGeneId,
-                    projection: "DETAILED",
-                    pageSize: args.page_size || 1000,
-                    pageNumber: 0,
-                };
+            const { entrezGeneId, sampleListId } = await resolveMutationQuery(
+                profileId,
+                String(args.hugo_gene_symbol),
+                args.sample_list_id ? String(args.sample_list_id) : undefined,
+            );
 
-                const path = `/molecular-profiles/${encodeURIComponent(profileId)}/mutations`;
-                const response = await cbioportalFetch(path, params);
+            const params: Record<string, unknown> = {
+                sampleListId,
+                entrezGeneId,
+                projection: "DETAILED",
+                pageSize: args.page_size || 1000,
+                pageNumber: 0,
+            };
 
-                if (!response.ok) {
-                    const body = await response.text().catch(() => "");
-                    throw new Error(`cBioPortal API error: HTTP ${response.status}${body ? ` - ${body.slice(0, 300)}` : ""}`);
-                }
+            const path = `/molecular-profiles/${encodeURIComponent(profileId)}/mutations`;
+            const response = await cbioportalFetch(path, params);
 
-                const data = await response.json() as Record<string, unknown>[];
+            if (!response.ok) {
+                const body = await response.text().catch(() => "");
+                throw new Error(`cBioPortal API error: HTTP ${response.status}${body ? ` - ${body.slice(0, 300)}` : ""}`);
+            }
 
-                const responseSize = JSON.stringify(data).length;
-                if (shouldStage(responseSize) && runtimeEnv?.CBIOPORTAL_DATA_DO) {
-                    const staged = await stageToDoAndRespond(
-                        data,
-                        runtimeEnv.CBIOPORTAL_DATA_DO as DurableObjectNamespace,
-                        "mutations",
-                        undefined,
-                        undefined,
-                        "cbioportal",
-                        (extra as Record<string, unknown>),
-                    );
-                    return createCodeModeResponse(
-                        {
-                            staged: true,
-                            data_access_id: staged.dataAccessId,
-                            total_rows: staged.totalRows,
-                            _staging: staged._staging,
-                            message: `Mutation data staged (${data.length} mutations). Use cbioportal_query_data with data_access_id '${staged.dataAccessId}' to query.`,
-                        },
-                        { meta: { staged: true, data_access_id: staged.dataAccessId } },
-                    );
-                }
+            const data = await response.json() as Record<string, unknown>[];
 
+            const responseSize = JSON.stringify(data).length;
+            if (shouldStage(responseSize) && runtimeEnv?.CBIOPORTAL_DATA_DO) {
+                const staged = await stageToDoAndRespond(
+                    data,
+                    runtimeEnv.CBIOPORTAL_DATA_DO as DurableObjectNamespace,
+                    "mutations",
+                    undefined,
+                    undefined,
+                    "cbioportal",
+                    (extra as Record<string, unknown>),
+                );
                 return createCodeModeResponse(
                     {
-                        mutations: data,
-                        total: data.length,
-                        molecular_profile_id: profileId,
+                        staged: true,
+                        data_access_id: staged.dataAccessId,
+                        total_rows: staged.totalRows,
+                        _staging: staged._staging,
+                        message: `Mutation data staged (${data.length} mutations). Use cbioportal_query_data with data_access_id '${staged.dataAccessId}' to query.`,
                     },
-                    { meta: { fetched_at: new Date().toISOString(), total: data.length } },
+                    { meta: { staged: true, data_access_id: staged.dataAccessId } },
                 );
-            } catch (err) {
-                const msg = err instanceof Error ? err.message : String(err);
-                return createCodeModeError("API_ERROR", `cbioportal_mutation_frequency failed: ${msg}`);
             }
-        },
-    );
+
+            return createCodeModeResponse(
+                {
+                    mutations: data,
+                    total: data.length,
+                    molecular_profile_id: profileId,
+                },
+                { meta: { fetched_at: new Date().toISOString(), total: data.length } },
+            );
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            return createCodeModeError("API_ERROR", `cbioportal_mutation_frequency failed: ${msg}`);
+        }
+    };
+
+    server.registerTool("cbioportal_mutation_frequency", schema, handler);
+    server.registerTool("mcp_cbioportal_mutation_frequency", schema, handler);
 }

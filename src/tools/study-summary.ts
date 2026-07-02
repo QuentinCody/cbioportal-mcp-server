@@ -7,39 +7,40 @@ import {
 } from "@bio-mcp/shared/codemode/response";
 
 export function registerStudySummary(server: McpServer, _env?: unknown): void {
-    server.registerTool(
-        "cbioportal_study_summary",
-        {
-            title: "Get Study Summary",
-            description:
-                "Get metadata for a cBioPortal study including name, description, cancer type, number of samples, and available molecular profiles.",
-            inputSchema: {
-                study_id: z
-                    .string()
-                    .min(1)
-                    .describe("Study ID (e.g. 'brca_tcga', 'luad_tcga_pan_can_atlas_2018')"),
-            },
+    const schema = {
+        title: "Get Study Summary",
+        description:
+            "Get metadata for a cBioPortal study including name, description, cancer type, number of samples, and available molecular profiles.",
+        inputSchema: {
+            study_id: z
+                .string()
+                .min(1)
+                .describe("Study ID (e.g. 'brca_tcga', 'luad_tcga_pan_can_atlas_2018')"),
         },
-        async (args) => {
-            try {
-                const studyId = String(args.study_id).trim();
+    };
 
-                const response = await cbioportalFetch(`/studies/${encodeURIComponent(studyId)}`);
+    const handler = async (args: { study_id: string }) => {
+        try {
+            const studyId = String(args.study_id).trim();
 
-                if (!response.ok) {
-                    const body = await response.text().catch(() => "");
-                    throw new Error(`cBioPortal API error: HTTP ${response.status}${body ? ` - ${body.slice(0, 300)}` : ""}`);
-                }
+            const response = await cbioportalFetch(`/studies/${encodeURIComponent(studyId)}`);
 
-                const study = await response.json();
-
-                return createCodeModeResponse(study, {
-                    meta: { fetched_at: new Date().toISOString() },
-                });
-            } catch (err) {
-                const msg = err instanceof Error ? err.message : String(err);
-                return createCodeModeError("API_ERROR", `cbioportal_study_summary failed: ${msg}`);
+            if (!response.ok) {
+                const body = await response.text().catch(() => "");
+                throw new Error(`cBioPortal API error: HTTP ${response.status}${body ? ` - ${body.slice(0, 300)}` : ""}`);
             }
-        },
-    );
+
+            const study = await response.json();
+
+            return createCodeModeResponse(study, {
+                meta: { fetched_at: new Date().toISOString() },
+            });
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            return createCodeModeError("API_ERROR", `cbioportal_study_summary failed: ${msg}`);
+        }
+    };
+
+    server.registerTool("cbioportal_study_summary", schema, handler);
+    server.registerTool("mcp_cbioportal_study_summary", schema, handler);
 }
