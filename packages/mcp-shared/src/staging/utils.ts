@@ -188,7 +188,7 @@ async function registerStagedDataset(
  *   If not provided, falls back to `prefix` (the data access ID prefix).
  * @param scope - Application-scope identifier. When provided, registers the staged dataset
  *   in the `__registry__` DO so `<prefix>_get_schema` can enumerate it after context compaction.
- *   Pass the tool handler's `extra` directly (preferred — picks up `_meta.app.chatId` or the
+ *   Pass the tool handler's `extra` directly (preferred — picks up `_meta["dev.quentincody.bio/chatId"]` or the
  *   `mcp-chat-id` header bridge), or a plain string for the legacy MCP transport session form.
  *   Resolved through {@link getRequestScope}.
  * @param options - Optional staging hints. `upstreamTotal` enables pagination

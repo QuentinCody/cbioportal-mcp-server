@@ -6,6 +6,7 @@ import {
     createCodeModeError,
 } from "@bio-mcp/shared/codemode/response";
 import { stageToDoAndRespond } from "@bio-mcp/shared/staging/utils";
+import type { MaybeExtra } from "@bio-mcp/shared";
 import { createChartResponse } from "@bio-mcp/shared/charting/create-chart-response";
 import type { ChartSpec } from "@bio-mcp/shared/charting/chart-types";
 import { coOccurrence } from "../lib/stats";
@@ -39,7 +40,7 @@ export function registerCoOccurrence(server: McpServer, env: CoOccurrenceEnv): v
         },
     };
 
-    const handler = async (args: { study_id: string; genes: string }, extra: { sessionId?: string }) => {
+    const handler = async (args: { study_id: string; genes: string }, extra: MaybeExtra) => {
         try {
             const studyId = args.study_id.trim();
             const geneList = args.genes
@@ -144,7 +145,7 @@ export function registerCoOccurrence(server: McpServer, env: CoOccurrenceEnv): v
                     undefined,
                     undefined,
                     "cbioportal",
-                    extra.sessionId,
+                    extra,
                 );
                 stagingMeta = {
                     staged: true as const,

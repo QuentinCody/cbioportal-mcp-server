@@ -6,6 +6,7 @@ import {
     createCodeModeError,
 } from "@bio-mcp/shared/codemode/response";
 import { stageToDoAndRespond } from "@bio-mcp/shared/staging/utils";
+import type { MaybeExtra } from "@bio-mcp/shared";
 import { createChartResponse } from "@bio-mcp/shared/charting/create-chart-response";
 import type { ChartSpec } from "@bio-mcp/shared/charting/chart-types";
 import {
@@ -120,7 +121,7 @@ export function registerSurvival(server: McpServer, env: SurvivalEnv): void {
         },
     };
 
-    const handler = async (args: { study_id: string; gene: string; endpoint?: string }, extra: { sessionId?: string }) => {
+    const handler = async (args: { study_id: string; gene: string; endpoint?: string }, extra: MaybeExtra) => {
         try {
             const studyId = args.study_id.trim();
             const geneSymbol = args.gene.trim().toUpperCase();
@@ -245,7 +246,7 @@ export function registerSurvival(server: McpServer, env: SurvivalEnv): void {
                     undefined,
                     undefined,
                     "cbioportal",
-                    (extra as Record<string, unknown>),
+                    extra,
                 );
                 stagingMeta = {
                     staged: true as const,

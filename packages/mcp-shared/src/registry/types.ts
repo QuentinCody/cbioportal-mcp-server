@@ -24,7 +24,7 @@ export interface ToolContext {
 	 *
 	 * Historically populated from the MCP transport sessionId; the
 	 * execute tools now resolve it via `getRequestScope(extra)`, which
-	 * prefers `_meta.app.chatId` and the `mcp-chat-id` header before
+	 * prefers `_meta["dev.quentincody.bio/chatId"]` and the `mcp-chat-id` header before
 	 * falling back to the transport session. The field name is kept
 	 * for back-compat with all downstream proxy tools (api-proxy,
 	 * stage-proxy, graphql-proxy, sparql-proxy) that already read
