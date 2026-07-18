@@ -28,11 +28,19 @@ export const cbioportalCatalog: ApiCatalog = {
             summary: "List all studies, optionally filtered by keyword or cancer type",
             category: "studies",
             queryParams: [
-                { name: "keyword", type: "string", required: false, description: "Search keyword for study name/description" },
+                { name: "keyword", type: "string", required: false, description: "Search keyword for study name/description (honored — a zero-row answer here is a real zero-hit)" },
                 { name: "pageSize", type: "number", required: false, description: "Results per page (default 1000000)" },
                 { name: "pageNumber", type: "number", required: false, description: "Page number (0-based)" },
-                { name: "projection", type: "string", required: false, description: "Response detail level", enum: ["SUMMARY", "DETAILED", "ID"] },
+                {
+                    name: "projection",
+                    type: "string",
+                    required: false,
+                    description:
+                        "Response detail level. SUMMARY or DETAILED ONLY on this endpoint: cBioPortal answers 200 with an EMPTY ARRAY for projection=ID here (verified live 2026-07-16; ID works fine on /cancer-types, /genes and /gene-panels), and projection=META always returns an empty body with the count in the total-count header — which this adapter does not surface. Both read as 'cBioPortal has no studies', so the adapter rejects them.",
+                    enum: ["SUMMARY", "DETAILED"],
+                },
             ],
+            usageHint: "To list study IDs cheaply use projection:'SUMMARY' with pageSize and read .studyId — NOT projection:'ID', which returns [].",
         },
         {
             method: "GET",
