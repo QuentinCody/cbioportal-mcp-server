@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { cbioportalFetch } from "../lib/http";
+import { cbioportalFetch, cbioportalPost } from "../lib/http";
 import {
     createCodeModeResponse,
     createCodeModeError,
@@ -10,6 +10,12 @@ import type { MaybeExtra } from "@bio-mcp/shared";
 import { createChartResponse } from "@bio-mcp/shared/charting/create-chart-response";
 import type { ChartSpec } from "@bio-mcp/shared/charting/chart-types";
 import { coOccurrence } from "../lib/stats";
+import {
+    annotateOffPanelPairs,
+    panelCoverageFromGenePanelData,
+    selectOffPanelGenes,
+    type GenePanelDataRow,
+} from "../lib/co-occurrence-stat";
 
 interface CoOccurrenceEnv {
     CBIOPORTAL_DATA_DO: DurableObjectNamespace;
@@ -25,6 +31,45 @@ async function fetchJson(path: string, params: Record<string, unknown> = {}): Pr
         throw new Error(`cBioPortal API HTTP ${response.status}${body ? ` - ${body.slice(0, 300)}` : ""}`);
     }
     return response.json();
+}
+
+/**
+ * Which query genes are NOT profiled in the study's sequencing panel(s) (#7).
+ * cBioPortal reports 0 mutations for an off-panel gene, indistinguishable from a
+ * truly-unmutated gene — so consult the actual gene-panel coverage. Fail-OPEN:
+ * on ANY uncertainty (whole-exome samples, no panel info, or an API error) treat
+ * all genes as profiled and return [], so we only ever flag a gene we are
+ * confident is off-panel. Genes with mutations are never flagged.
+ */
+async function resolveOffPanelGenes(
+    studyId: string,
+    genes: { symbol: string; entrezGeneId: number }[],
+    mutations: Record<string, unknown>[],
+): Promise<string[]> {
+    try {
+        const resp = await cbioportalPost(
+            `/molecular-profiles/${encodeURIComponent(`${studyId}_mutations`)}/gene-panel-data/fetch`,
+            { sampleListId: `${studyId}_all` },
+        );
+        if (!resp.ok) return [];
+        const rows = (await resp.json()) as GenePanelDataRow[];
+        const { panelIds, wholeGenome } = panelCoverageFromGenePanelData(rows);
+        // Whole-exome coverage, or no panel info at all -> cannot prove off-panel.
+        if (wholeGenome || panelIds.length === 0) return [];
+        const profiledEntrez = new Set<number>();
+        for (const panelId of panelIds) {
+            const panel = (await fetchJson(
+                `/gene-panels/${encodeURIComponent(panelId)}`,
+            )) as { genes?: Array<{ entrezGeneId?: number }> };
+            for (const g of panel.genes ?? []) {
+                if (typeof g.entrezGeneId === "number") profiledEntrez.add(g.entrezGeneId);
+            }
+        }
+        const mutatedEntrez = new Set(mutations.map((m) => Number(m.entrezGeneId)));
+        return selectOffPanelGenes(genes, profiledEntrez, mutatedEntrez);
+    } catch {
+        return [];
+    }
 }
 
 export function registerCoOccurrence(server: McpServer, env: CoOccurrenceEnv): void {
@@ -111,6 +156,15 @@ export function registerCoOccurrence(server: McpServer, env: CoOccurrenceEnv): v
                 totalSamples,
             );
 
+            // #7: flag genes not profiled in this study's panel so a genuine 0
+            // is not reported as "never co-mutated".
+            const offPanelGenes = await resolveOffPanelGenes(
+                studyId,
+                validGenes,
+                allMutations,
+            );
+            annotateOffPanelPairs(result, offPanelGenes);
+
             // 5. Build markdown summary
             const lines = [
                 `## Mutation Co-Occurrence: ${validGenes.map((g) => g.symbol).join(", ")} in ${studyId}`,
@@ -131,6 +185,15 @@ export function registerCoOccurrence(server: McpServer, env: CoOccurrenceEnv): v
 
             if (failedGenes.length > 0) {
                 lines.push("", `Note: ${failedGenes.length} gene(s) not found and excluded: ${failedGenes.map((g) => g.symbol).join(", ")}`);
+            }
+
+            if (offPanelGenes.length > 0) {
+                lines.push(
+                    "",
+                    `Not profiled in this study's gene panel: ${offPanelGenes.join(", ")}. ` +
+                        `A "0" for these means "not measured here", not "never co-mutated" — ` +
+                        `pairs involving them are flagged pattern="not_profiled".`,
+                );
             }
 
             const markdown = lines.join("\n");
@@ -193,6 +256,7 @@ export function registerCoOccurrence(server: McpServer, env: CoOccurrenceEnv): v
                         ...chartResponse.structuredContent.data,
                         study_id: studyId,
                         genes: validGenes.map((g) => g.symbol),
+                        genes_not_profiled: offPanelGenes,
                         total_samples: totalSamples,
                         co_occurrence: result,
                         ...(stagingMeta ?? {}),
