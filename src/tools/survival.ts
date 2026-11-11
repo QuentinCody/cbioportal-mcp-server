@@ -1,3 +1,4 @@
+import { cbioportalResponse, type DataEnv } from "../lib/tool-result";
 import type { McpServer } from "@bio-mcp/shared/mcp";
 import { z } from "zod";
 import { cbioportalFetch } from "../lib/http";
@@ -115,7 +116,6 @@ export function registerSurvival(server: McpServer, env: SurvivalEnv): void {
             gene: z.string().min(1).describe("Hugo gene symbol (e.g. 'TP53', 'BRCA1', 'KRAS')"),
             endpoint: z
                 .enum(["os", "pfs", "dfs", "dss"])
-                .default("os")
                 .optional()
                 .describe("Survival endpoint: os (overall), pfs (progression-free), dfs (disease-free), dss (disease-specific)"),
         },
@@ -165,19 +165,7 @@ export function registerSurvival(server: McpServer, env: SurvivalEnv): void {
             }));
 
             // 3. Build sample→patient mapping
-            const sampleToPatient = new Map<string, string>();
-            for (const s of sampleData) {
-                const sid = String(s.sampleId ?? "");
-                const pid = String(s.patientId ?? "");
-                if (sid && pid) sampleToPatient.set(sid, pid);
-            }
-
-            // 4. Get all unique patient IDs from clinical data
-            const allPatientIds = new Set<string>();
-            for (const row of clinicalData) {
-                const pid = String(row.patientId ?? "");
-                if (pid) allPatientIds.add(pid);
-            }
+            const { sampleToPatient, allPatientIds } = survivalCohortIds(sampleData, clinicalData);
 
             // 5. Pivot clinical data to per-patient survival records
             const survivalRecords = pivotClinicalToSurvival(
@@ -342,6 +330,23 @@ export function registerSurvival(server: McpServer, env: SurvivalEnv): void {
         }
     };
 
-    server.registerTool("cbioportal_survival", schema, handler);
-    server.registerTool("mcp_cbioportal_survival", schema, handler);
+    server.registerTool("cbioportal_survival", schema, (args, extra) => cbioportalResponse(() => handler(args, extra), (env ?? {}) as DataEnv, "cbioportal_survival", extra, args));
+    server.registerTool("mcp_cbioportal_survival", schema, (args, extra) => cbioportalResponse(() => handler(args, extra), (env ?? {}) as DataEnv, "cbioportal_survival", extra, args));
+}
+
+function survivalCohortIds(sampleData: Record<string, unknown>[], clinicalData: Record<string, unknown>[]) {
+  const sampleToPatient = new Map<string, string>();
+  for (const s of sampleData) {
+    const sid = String(s.sampleId ?? "");
+    const pid = String(s.patientId ?? "");
+    if (sid && pid) sampleToPatient.set(sid, pid);
+  }
+
+  // 4. Get all unique patient IDs from clinical data
+  const allPatientIds = new Set<string>();
+  for (const row of clinicalData) {
+    const pid = String(row.patientId ?? "");
+    if (pid) allPatientIds.add(pid);
+  }
+  return { sampleToPatient, allPatientIds };
 }

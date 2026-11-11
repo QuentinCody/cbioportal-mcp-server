@@ -43,7 +43,7 @@ const toolExpectations = [
   },
   {
     path: 'src/tools/study-summary.ts',
-    required: ['createCodeModeResponse', 'createCodeModeError'],
+    required: ['createCodeModeResponse', 'cbioportalResponse'],
   },
 ];
 

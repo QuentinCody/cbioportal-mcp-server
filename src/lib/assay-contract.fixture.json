@@ -1,0 +1,112 @@
+{
+  "source": "https://www.cbioportal.org/api/v3/api-docs",
+  "retrieved": "2026-09-28",
+  "schemas": {
+    "GenericAssayFilter": {
+      "type": "object",
+      "description": "List of Sample IDs/Sample List ID and Generic Assay IDs",
+      "properties": {
+        "sampleIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 10000000,
+          "minItems": 1
+        },
+        "sampleListId": {
+          "type": "string"
+        },
+        "genericAssayStableIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "GenericAssayData": {
+      "type": "object",
+      "properties": {
+        "uniqueSampleKey": {
+          "type": "string"
+        },
+        "uniquePatientKey": {
+          "type": "string"
+        },
+        "molecularProfileId": {
+          "type": "string"
+        },
+        "sampleId": {
+          "type": "string"
+        },
+        "patientId": {
+          "type": "string"
+        },
+        "studyId": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        },
+        "genericAssayStableId": {
+          "type": "string"
+        },
+        "patientLevel": {
+          "type": "boolean"
+        },
+        "stableId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "genericAssayStableId",
+        "molecularProfileId",
+        "patientId",
+        "sampleId",
+        "studyId",
+        "value"
+      ]
+    },
+    "GenericAssayMeta": {
+      "type": "object",
+      "description": "Represents generic assay metadata",
+      "properties": {
+        "stableId": {
+          "type": "string"
+        },
+        "entityType": {
+          "type": "string"
+        },
+        "genericEntityMetaProperties": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "GenericAssayMetaFilter": {
+      "type": "object",
+      "description": "List of Molecular Profile ID or List of Stable ID",
+      "properties": {
+        "molecularProfileIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 10000000,
+          "minItems": 1
+        },
+        "genericAssayStableIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 10000000,
+          "minItems": 1
+        }
+      }
+    }
+  }
+}

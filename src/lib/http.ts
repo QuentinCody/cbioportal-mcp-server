@@ -39,6 +39,7 @@ export async function cbioportalPost(
     path: string,
     body: object,
     opts?: CbioportalFetchOptions,
+    params?: Record<string, unknown>,
 ): Promise<Response> {
     const baseUrl = opts?.baseUrl ?? CBIOPORTAL_BASE;
     const headers: Record<string, string> = {
@@ -47,7 +48,7 @@ export async function cbioportalPost(
         ...(opts?.headers ?? {}),
     };
 
-    return restFetch(baseUrl, path, undefined, {
+    return restFetch(baseUrl, path, params, {
         ...opts,
         method: "POST",
         headers,

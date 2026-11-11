@@ -1,16 +1,17 @@
+import { cbioportalResponse, type DataEnv } from "../lib/tool-result";
 import type { McpServer } from "@bio-mcp/shared/mcp";
 import { z } from "zod";
 import { cbioportalFetch } from "../lib/http";
+import { readCbioportal } from "../lib/read";
 import {
     createCodeModeResponse,
-    createCodeModeError,
 } from "@bio-mcp/shared/codemode/response";
 
-export function registerStudySummary(server: McpServer, _env?: unknown): void {
+export function registerStudySummary(server: McpServer, env?: unknown): void {
     const schema = {
         title: "Get Study Summary",
         description:
-            "Get metadata for a cBioPortal study including name, description, cancer type, number of samples, and available molecular profiles.",
+            "Get metadata for a cBioPortal study including name, description, cancer type, number of samples and native source fields. Discover available molecular profiles separately with Code Mode.",
         inputSchema: {
             study_id: z
                 .string()
@@ -20,27 +21,12 @@ export function registerStudySummary(server: McpServer, _env?: unknown): void {
     };
 
     const handler = async (args: { study_id: string }) => {
-        try {
-            const studyId = String(args.study_id).trim();
-
-            const response = await cbioportalFetch(`/studies/${encodeURIComponent(studyId)}`);
-
-            if (!response.ok) {
-                const body = await response.text().catch(() => "");
-                throw new Error(`cBioPortal API error: HTTP ${response.status}${body ? ` - ${body.slice(0, 300)}` : ""}`);
-            }
-
-            const study = await response.json();
-
-            return createCodeModeResponse(study, {
-                meta: { fetched_at: new Date().toISOString() },
-            });
-        } catch (err) {
-            const msg = err instanceof Error ? err.message : String(err);
-            return createCodeModeError("API_ERROR", `cbioportal_study_summary failed: ${msg}`);
-        }
+        const studyId = String(args.study_id).trim();
+        const response = await cbioportalFetch(`/studies/${encodeURIComponent(studyId)}`);
+        const { data: study } = await readCbioportal(response);
+        return createCodeModeResponse(study, { meta: { fetched_at: new Date().toISOString() } });
     };
 
-    server.registerTool("cbioportal_study_summary", schema, handler);
-    server.registerTool("mcp_cbioportal_study_summary", schema, handler);
+    server.registerTool("cbioportal_study_summary", schema, (args, extra) => cbioportalResponse(() => handler(args), (env ?? {}) as DataEnv, "cbioportal_study_summary", extra, args));
+    server.registerTool("mcp_cbioportal_study_summary", schema, (args, extra) => cbioportalResponse(() => handler(args), (env ?? {}) as DataEnv, "cbioportal_study_summary", extra, args));
 }

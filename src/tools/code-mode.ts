@@ -3,6 +3,7 @@ import { createSearchTool } from "@bio-mcp/shared/codemode/search-tool";
 import { createExecuteTool } from "@bio-mcp/shared/codemode/execute-tool";
 import { cbioportalCatalog } from "../spec/catalog";
 import { createCbioportalApiFetch } from "../lib/api-adapter";
+import { cbioportalResponse } from "../lib/tool-result";
 import { ONCOLOGY_STATS_SOURCE } from "../lib/stats-source";
 
 interface CodeModeEnv {
@@ -15,12 +16,19 @@ export function registerCodeMode(
     env: CodeModeEnv,
 ): void {
     const apiFetch = createCbioportalApiFetch();
+    const registrar = {tool: (...args: unknown[]) => {
+        const [name, ...rest] = args;
+        const handler = rest.pop() as (input: unknown, extra: unknown) => ReturnType<typeof cbioportalResponse>;
+        const respond = (input: unknown, extra: unknown) => cbioportalResponse(() => handler(input, extra), env, String(name), extra, input);
+        const register = server.tool.bind(server) as (...values: unknown[]) => void;
+        register(name, ...rest, respond); register(`mcp_${String(name)}`, ...rest, respond);
+    }};
 
     const searchTool = createSearchTool({
         prefix: "cbioportal",
         catalog: cbioportalCatalog,
     });
-    searchTool.register(server as unknown as { tool: (...args: unknown[]) => void });
+    searchTool.register(registrar);
 
     const executeTool = createExecuteTool({
         prefix: "cbioportal",
@@ -28,9 +36,13 @@ export function registerCodeMode(
         source: { id: "cbioportal", name: "cBioPortal", url: "https://www.cbioportal.org" },
         catalog: cbioportalCatalog,
         apiFetch,
+        preserveApiErrors: true,
+        stagingThreshold: 30 * 1024,
+        maxInlineBytes: 30 * 1024,
+        timeout: 90_000,
         doNamespace: env.CBIOPORTAL_DATA_DO,
         loader: env.CODE_MODE_LOADER,
         preamble: ONCOLOGY_STATS_SOURCE,
     });
-    executeTool.register(server as unknown as { tool: (...args: unknown[]) => void });
+    executeTool.register(registrar);
 }

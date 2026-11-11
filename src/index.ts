@@ -31,7 +31,7 @@ export class MyMCP extends StatelessMcpWorker {
         registerGetSchema(this.server, env);
         registerCodeMode(this.server, env);
         registerMutationFrequency(this.server, env);
-        registerStudySummary(this.server);
+        registerStudySummary(this.server, env);
         registerSurvival(this.server, env);
         registerCoOccurrence(this.server, env);
     }

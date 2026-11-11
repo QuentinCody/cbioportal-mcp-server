@@ -1,3 +1,4 @@
+import { assayEndpoints, assayWorkflows } from "./assays";
 import type { ApiCatalog } from "@bio-mcp/shared/codemode/catalog";
 
 export const cbioportalCatalog: ApiCatalog = {
@@ -5,13 +6,15 @@ export const cbioportalCatalog: ApiCatalog = {
     baseUrl: "https://www.cbioportal.org/api",
     version: "1.0",
     auth: "none",
-    endpointCount: 24,
+    endpointCount: 31,
+    workflows: assayWorkflows,
     notes:
-        "- Public REST API with Swagger docs at /api-docs\n" +
+        "- Public REST API with instance OpenAPI at /api/v3/api-docs\n" +
         "- Study IDs follow pattern: cancer_source (e.g. brca_tcga, luad_tcga_pan_can_atlas_2018)\n" +
-        "- Molecular profile IDs = studyId + '_mutations' or '_gistic' or '_rna_seq_v2_mrna'\n" +
+        "- Discover molecular profile IDs from study metadata; do not infer generic-assay IDs from suffixes\n" +
         "- Most endpoints return JSON arrays; use pageSize/pageNumber for pagination\n" +
-        "- No auth required\n" +
+        "- Fixed public www.cbioportal.org instance; private/authenticated deployments are not configured here. Virtual-study reads may require permissions.\n" +
+        "- Generic-assay helpers return {records, _cbioportal}; values preserve censoring/categories/missing markers. Cohort inspection is read-only, with dynamic filters unresolved.\n" +
         "- STATS HELPERS available in execute: stats.kaplanMeier(patients, timeField, statusField, eventValue) → KM survival estimator\n" +
         "- stats.logRank(group1, group2, timeField, statusField, eventValue) → log-rank test comparing two survival curves\n" +
         "- stats.fisherExact2x2(a, b, c, d) → Fisher's exact test for 2x2 contingency table\n" +
@@ -21,6 +24,7 @@ export const cbioportalCatalog: ApiCatalog = {
         "- stats.mutationFrequency(mutations, totalSamples, geneField, sampleIdField) → per-gene mutation frequency\n" +
         "- stats.expressionStats(values) → summary statistics (n, mean, median, min, max, q1, q3, sd)",
     endpoints: [
+        ...assayEndpoints,
         // === Studies ===
         {
             method: "GET",

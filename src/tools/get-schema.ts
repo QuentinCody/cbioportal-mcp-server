@@ -1,3 +1,4 @@
+import { cbioportalResponse } from "../lib/tool-result";
 import type { McpServer } from "@bio-mcp/shared/mcp";
 import { z } from "zod";
 import { createGetSchemaHandler } from "@bio-mcp/shared/staging/utils";
@@ -9,8 +10,8 @@ interface SchemaEnv {
 export function registerGetSchema(server: McpServer, env?: SchemaEnv): void {
     const handler = createGetSchemaHandler("CBIOPORTAL_DATA_DO", "cbioportal");
 
-    server.registerTool(
-        "cbioportal_get_schema",
+    for (const toolName of ["cbioportal_get_schema", "mcp_cbioportal_get_schema"]) server.registerTool(
+        toolName,
         {
             title: "Get Staged Data Schema",
             description:
@@ -29,11 +30,11 @@ export function registerGetSchema(server: McpServer, env?: SchemaEnv): void {
         async (args, extra) => {
             const runtimeEnv =
                 env || (extra as { env?: SchemaEnv })?.env || {};
-            return handler(
+            return cbioportalResponse(() => handler(
                 args as Record<string, unknown>,
                 runtimeEnv as Record<string, unknown>,
                 (extra as Record<string, unknown>),
-            );
+            ), runtimeEnv, toolName, extra, args);
         },
     );
 }

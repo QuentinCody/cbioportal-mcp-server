@@ -1,3 +1,4 @@
+import { cbioportalResponse, type DataEnv } from "../lib/tool-result";
 import type { McpServer } from "@bio-mcp/shared/mcp";
 import { z } from "zod";
 import { cbioportalFetch } from "../lib/http";
@@ -64,7 +65,6 @@ export function registerMutationFrequency(server: McpServer, env?: MutEnv): void
                 .int()
                 .min(1)
                 .max(10000)
-                .default(1000)
                 .optional()
                 .describe("Number of mutations to return (default: 1000)"),
         },
@@ -117,25 +117,7 @@ export function registerMutationFrequency(server: McpServer, env?: MutEnv): void
 
             const responseSize = JSON.stringify(data).length;
             if (shouldStage(responseSize) && runtimeEnv?.CBIOPORTAL_DATA_DO) {
-                const staged = await stageToDoAndRespond(
-                    data,
-                    runtimeEnv.CBIOPORTAL_DATA_DO as DurableObjectNamespace,
-                    "mutations",
-                    undefined,
-                    undefined,
-                    "cbioportal",
-                    (extra as Record<string, unknown>),
-                );
-                return createCodeModeResponse(
-                    {
-                        staged: true,
-                        data_access_id: staged.dataAccessId,
-                        total_rows: staged.totalRows,
-                        _staging: staged._staging,
-                        message: `Mutation data staged (${data.length} mutations). Use cbioportal_query_data with data_access_id '${staged.dataAccessId}' to query.`,
-                    },
-                    { meta: { staged: true, data_access_id: staged.dataAccessId } },
-                );
+                return await stageMutations(data, runtimeEnv, extra);
             }
 
             return createCodeModeResponse(
@@ -152,6 +134,28 @@ export function registerMutationFrequency(server: McpServer, env?: MutEnv): void
         }
     };
 
-    server.registerTool("cbioportal_mutation_frequency", schema, handler);
-    server.registerTool("mcp_cbioportal_mutation_frequency", schema, handler);
+    server.registerTool("cbioportal_mutation_frequency", schema, (args, extra) => cbioportalResponse(() => handler(args, extra), (env ?? {}) as DataEnv, "cbioportal_mutation_frequency", extra, args));
+    server.registerTool("mcp_cbioportal_mutation_frequency", schema, (args, extra) => cbioportalResponse(() => handler(args, extra), (env ?? {}) as DataEnv, "cbioportal_mutation_frequency", extra, args));
+}
+
+async function stageMutations(data: Record<string, unknown>[], runtimeEnv: MutEnv, extra: unknown) {
+  const staged = await stageToDoAndRespond(
+    data,
+    runtimeEnv.CBIOPORTAL_DATA_DO as DurableObjectNamespace,
+    "mutations",
+    undefined,
+    undefined,
+    "cbioportal",
+    (extra as Record<string, unknown>)
+  );
+  return createCodeModeResponse(
+    {
+      staged: true,
+      data_access_id: staged.dataAccessId,
+      total_rows: staged.totalRows,
+      _staging: staged._staging,
+      message: `Mutation data staged (${data.length} mutations). Use cbioportal_query_data with data_access_id '${staged.dataAccessId}' to query.`,
+    },
+    { meta: { staged: true, data_access_id: staged.dataAccessId } }
+  );
 }

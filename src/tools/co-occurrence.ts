@@ -1,3 +1,4 @@
+import { cbioportalResponse, type DataEnv } from "../lib/tool-result";
 import type { McpServer } from "@bio-mcp/shared/mcp";
 import { z } from "zod";
 import { cbioportalFetch, cbioportalPost } from "../lib/http";
@@ -101,16 +102,7 @@ export function registerCoOccurrence(server: McpServer, env: CoOccurrenceEnv): v
             }
 
             // 1. Resolve all genes to entrezGeneIds
-            const geneResults = await Promise.all(
-                geneList.map(async (symbol) => {
-                    try {
-                        const info = (await fetchJson(`/genes/${encodeURIComponent(symbol)}`)) as Record<string, unknown>;
-                        return { symbol, entrezGeneId: info.entrezGeneId as number, error: null };
-                    } catch {
-                        return { symbol, entrezGeneId: null, error: `Gene '${symbol}' not found` };
-                    }
-                }),
-            );
+            const geneResults = await resolveCooccurrenceGenes(geneList);
 
             const failedGenes = geneResults.filter((g) => g.entrezGeneId === null);
             if (failedGenes.length === geneList.length) {
@@ -277,6 +269,19 @@ export function registerCoOccurrence(server: McpServer, env: CoOccurrenceEnv): v
         }
     };
 
-    server.registerTool("cbioportal_co_occurrence", schema, handler);
-    server.registerTool("mcp_cbioportal_co_occurrence", schema, handler);
+    server.registerTool("cbioportal_co_occurrence", schema, (args, extra) => cbioportalResponse(() => handler(args, extra), (env ?? {}) as DataEnv, "cbioportal_co_occurrence", extra, args));
+    server.registerTool("mcp_cbioportal_co_occurrence", schema, (args, extra) => cbioportalResponse(() => handler(args, extra), (env ?? {}) as DataEnv, "cbioportal_co_occurrence", extra, args));
+}
+
+async function resolveCooccurrenceGenes(geneList: string[]) {
+  return await Promise.all(
+    geneList.map(async (symbol) => {
+      try {
+        const info = (await fetchJson(`/genes/${encodeURIComponent(symbol)}`)) as Record<string, unknown>;
+        return { symbol, entrezGeneId: info.entrezGeneId as number, error: null };
+      } catch {
+        return { symbol, entrezGeneId: null, error: `Gene '${symbol}' not found` };
+      }
+    })
+  );
 }
